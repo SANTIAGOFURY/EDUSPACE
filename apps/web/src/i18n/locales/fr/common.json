@@ -1,0 +1,56 @@
+{
+  "auth": {
+    "welcome": "Bon retour",
+    "welcomeSubtitle": "Connectez-vous à votre compte EduSpace",
+    "createAccount": "Créer un compte",
+    "createAccountSubtitle": "Commencez votre parcours d'apprentissage aujourd'hui",
+    "email": "Adresse e-mail",
+    "password": "Mot de passe",
+    "confirmPassword": "Confirmer le mot de passe",
+    "firstName": "Prénom",
+    "lastName": "Nom de famille",
+    "forgotPassword": "Mot de passe oublié ?",
+    "signIn": "Se connecter",
+    "signUp": "Créer un compte",
+    "signingIn": "Connexion en cours...",
+    "signingUp": "Création du compte...",
+    "noAccount": "Pas encore de compte ?",
+    "hasAccount": "Vous avez déjà un compte ?",
+    "signUpLink": "S'inscrire",
+    "signInLink": "Se connecter",
+    "orContinueWith": "Ou continuer avec",
+    "google": "Continuer avec Google",
+    "termsText": "En créant un compte, vous acceptez nos",
+    "terms": "Conditions d'utilisation",
+    "and": "et notre",
+    "privacy": "Politique de confidentialité",
+    "resetPassword": "Réinitialiser le mot de passe",
+    "resetPasswordSubtitle": "Entrez votre e-mail et nous vous enverrons un lien",
+    "sendResetLink": "Envoyer le lien",
+    "backToSignIn": "Retour à la connexion",
+    "resetSent": "Lien envoyé ! Vérifiez votre boîte mail."
+  },
+  "errors": {
+    "emailRequired": "L'e-mail est requis",
+    "emailInvalid": "Veuillez entrer un e-mail valide",
+    "passwordRequired": "Le mot de passe est requis",
+    "passwordMinLength": "Le mot de passe doit comporter au moins 8 caractères",
+    "passwordMismatch": "Les mots de passe ne correspondent pas",
+    "firstNameRequired": "Le prénom est requis",
+    "lastNameRequired": "Le nom de famille est requis",
+    "invalidCredentials": "E-mail ou mot de passe invalide",
+    "emailInUse": "Cet e-mail est déjà enregistré",
+    "networkError": "Erreur réseau. Veuillez réessayer",
+    "tooManyRequests": "Trop de tentatives. Veuillez réessayer plus tard",
+    "genericError": "Une erreur s'est produite. Veuillez réessayer",
+    "weakPassword": "Le mot de passe est trop faible"
+  },
+  "success": {
+    "signIn": "Bon retour !",
+    "signUp": "Compte créé avec succès !",
+    "resetSent": "Lien de réinitialisation envoyé"
+  },
+  "nav": {
+    "language": "Langue"
+  }
+}

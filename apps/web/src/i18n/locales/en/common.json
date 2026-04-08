@@ -1,0 +1,56 @@
+{
+  "auth": {
+    "welcome": "Welcome back",
+    "welcomeSubtitle": "Sign in to your EduSpace account",
+    "createAccount": "Create an account",
+    "createAccountSubtitle": "Start your learning journey today",
+    "email": "Email address",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "firstName": "First name",
+    "lastName": "Last name",
+    "forgotPassword": "Forgot password?",
+    "signIn": "Sign in",
+    "signUp": "Create account",
+    "signingIn": "Signing in...",
+    "signingUp": "Creating account...",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "signUpLink": "Sign up",
+    "signInLink": "Sign in",
+    "orContinueWith": "Or continue with",
+    "google": "Continue with Google",
+    "termsText": "By creating an account, you agree to our",
+    "terms": "Terms of Service",
+    "and": "and",
+    "privacy": "Privacy Policy",
+    "resetPassword": "Reset password",
+    "resetPasswordSubtitle": "Enter your email and we'll send you a reset link",
+    "sendResetLink": "Send reset link",
+    "backToSignIn": "Back to sign in",
+    "resetSent": "Reset link sent! Check your inbox."
+  },
+  "errors": {
+    "emailRequired": "Email is required",
+    "emailInvalid": "Please enter a valid email",
+    "passwordRequired": "Password is required",
+    "passwordMinLength": "Password must be at least 8 characters",
+    "passwordMismatch": "Passwords do not match",
+    "firstNameRequired": "First name is required",
+    "lastNameRequired": "Last name is required",
+    "invalidCredentials": "Invalid email or password",
+    "emailInUse": "This email is already registered",
+    "networkError": "Network error. Please try again",
+    "tooManyRequests": "Too many attempts. Please try again later",
+    "genericError": "Something went wrong. Please try again",
+    "weakPassword": "Password is too weak"
+  },
+  "success": {
+    "signIn": "Welcome back!",
+    "signUp": "Account created successfully!",
+    "resetSent": "Reset link sent to your email"
+  },
+  "nav": {
+    "language": "Language"
+  }
+}

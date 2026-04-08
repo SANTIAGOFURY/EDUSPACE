@@ -1,159 +1,356 @@
-# Turborepo starter
 
-This Turborepo starter is maintained by the Turborepo core team.
-
-## Using this example
-
-Run the following command:
-
-```sh
-npx create-turbo@latest
 ```
+eduspace
+├─ .npmrc
+├─ apps
+│  └─ web
+│     ├─ eslint.config.js
+│     ├─ index.html
+│     ├─ package.json
+│     ├─ public
+│     │  ├─ favicon.svg
+│     │  └─ icons.svg
+│     ├─ README.md
+│     ├─ src
+│     │  ├─ App.css
+│     │  ├─ App.tsx
+│     │  ├─ assets
+│     │  ├─ components
+│     │  │  ├─ charts
+│     │  │  │  ├─ Heatmap.tsx
+│     │  │  │  ├─ index.tsx
+│     │  │  │  ├─ ProgressBar.tsx
+│     │  │  │  └─ RadarChart.tsx
+│     │  │  ├─ common
+│     │  │  │  ├─ Avatar.tsx
+│     │  │  │  ├─ Badge.tsx
+│     │  │  │  ├─ Button.tsx
+│     │  │  │  ├─ index.tsx
+│     │  │  │  ├─ Input.tsx
+│     │  │  │  └─ Modal.tsx
+│     │  │  ├─ content
+│     │  │  │  ├─ index.tsx
+│     │  │  │  ├─ PDFViewer.tsx
+│     │  │  │  ├─ ProtectedViewer.tsx
+│     │  │  │  └─ RichText.tsx
+│     │  │  └─ forms
+│     │  │     ├─ FieldRenderer.tsx
+│     │  │     ├─ FormBuilder.tsx
+│     │  │     └─ index.tsx
+│     │  ├─ context
+│     │  │  ├─ AuthContext.tsx
+│     │  │  ├─ index.tsx
+│     │  │  └─ ThemeContext.tsx
+│     │  ├─ hooks
+│     │  │  ├─ index.ts
+│     │  │  ├─ useAuth.ts
+│     │  │  ├─ useTheme.ts
+│     │  │  └─ useToast.ts
+│     │  ├─ i18n
+│     │  │  ├─ index.ts
+│     │  │  └─ locales
+│     │  │     ├─ ar
+│     │  │     │  └─ common.json
+│     │  │     ├─ en
+│     │  │     │  └─ common.json
+│     │  │     └─ fr
+│     │  │        └─ common.json
+│     │  ├─ main.tsx
+│     │  ├─ pages
+│     │  │  ├─ auth
+│     │  │  │  ├─ ForgotPassword.tsx
+│     │  │  │  ├─ index.tsx
+│     │  │  │  ├─ Login.tsx
+│     │  │  │  └─ Register.tsx
+│     │  │  ├─ open
+│     │  │  │  ├─ About.tsx
+│     │  │  │  ├─ Contact.tsx
+│     │  │  │  ├─ Home.tsx
+│     │  │  │  └─ Services.tsx
+│     │  │  ├─ student
+│     │  │  │  ├─ index.tsx
+│     │  │  │  ├─ MyCourses.tsx
+│     │  │  │  ├─ Quizzes.tsx
+│     │  │  │  ├─ Requests.tsx
+│     │  │  │  └─ StudentHome.tsx
+│     │  │  └─ teacher
+│     │  │     ├─ Classes.tsx
+│     │  │     ├─ Courses.tsx
+│     │  │     ├─ Dashboard.tsx
+│     │  │     ├─ index.tsx
+│     │  │     └─ Students.tsx
+│     │  ├─ router
+│     │  │  ├─ guards.tsx
+│     │  │  └─ index.tsx
+│     │  ├─ services
+│     │  │  ├─ api.ts
+│     │  │  ├─ brevo.ts
+│     │  │  ├─ firebase.ts
+│     │  │  └─ index.ts
+│     │  ├─ store
+│     │  │  ├─ authSlice.ts
+│     │  │  ├─ courseSlice.ts
+│     │  │  ├─ index.ts
+│     │  │  └─ uiSlice.ts
+│     │  ├─ styles
+│     │  │  ├─ globals.css
+│     │  │  └─ tailwind-base.css
+│     │  ├─ types
+│     │  │  └─ index.ts
+│     │  └─ utils
+│     │     ├─ formatters.ts
+│     │     ├─ helpers.ts
+│     │     ├─ index.ts
+│     │     └─ validators.ts
+│     ├─ tsconfig.app.json
+│     ├─ tsconfig.json
+│     ├─ tsconfig.node.json
+│     └─ vite.config.ts
+├─ firebase-debug.log
+├─ firestore.indexes.json
+├─ firestore.rules
+├─ functions
+│  ├─ .eslintrc.js
+│  ├─ package.json
+│  ├─ src
+│  │  ├─ auth
+│  │  │  └─ index.ts
+│  │  ├─ email
+│  │  │  └─ index.ts
+│  │  ├─ index.ts
+│  │  ├─ notifications
+│  │  │  └─ index.ts
+│  │  ├─ reports
+│  │  │  └─ index.ts
+│  │  └─ storage
+│  │     └─ index.ts
+│  ├─ tsconfig.dev.json
+│  └─ tsconfig.json
+├─ package.json
+├─ packages
+│  ├─ config
+│  │  ├─ eslint-config
+│  │  │  ├─ index.js
+│  │  │  └─ package.json
+│  │  ├─ tailwind-config
+│  │  │  ├─ index.ts
+│  │  │  └─ package.json
+│  │  └─ typescript-config
+│  │     ├─ base.json
+│  │     ├─ package.json
+│  │     └─ react.json
+│  ├─ firebase
+│  │  ├─ package.json
+│  │  ├─ src
+│  │  │  ├─ auth.ts
+│  │  │  ├─ firestore.ts
+│  │  │  ├─ index.ts
+│  │  │  ├─ messaging.ts
+│  │  │  └─ storage.ts
+│  │  └─ tsconfig.json
+│  ├─ types
+│  │  ├─ package.json
+│  │  ├─ src
+│  │  │  ├─ course.ts
+│  │  │  ├─ exercise.ts
+│  │  │  ├─ form.ts
+│  │  │  ├─ index.ts
+│  │  │  ├─ quiz.ts
+│  │  │  ├─ request.ts
+│  │  │  └─ user.ts
+│  │  └─ tsconfig.json
+│  └─ ui
+│     ├─ package.json
+│     ├─ src
+│     │  └─ index.ts
+│     └─ tsconfig.json
+├─ pnpm-lock.yaml
+├─ pnpm-workspace.yaml
+├─ project-tree.txt
+├─ README.md
+├─ tsconfig.json
+└─ turbo.json
 
-## What's inside?
-
-This Turborepo includes the following packages/apps:
-
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo build
 ```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
 ```
+eduspace
+├─ .npmrc
+├─ apps
+│  └─ web
+│     ├─ eslint.config.js
+│     ├─ index.html
+│     ├─ package.json
+│     ├─ public
+│     ├─ README.md
+│     ├─ src
+│     │  ├─ App.css
+│     │  ├─ App.tsx
+│     │  ├─ assets
+│     │  ├─ components
+│     │  │  ├─ charts
+│     │  │  │  ├─ Heatmap.tsx
+│     │  │  │  ├─ index.tsx
+│     │  │  │  ├─ ProgressBar.tsx
+│     │  │  │  └─ RadarChart.tsx
+│     │  │  ├─ common
+│     │  │  │  ├─ Avatar.tsx
+│     │  │  │  ├─ Badge.tsx
+│     │  │  │  ├─ Button.tsx
+│     │  │  │  ├─ index.tsx
+│     │  │  │  ├─ Input.tsx
+│     │  │  │  ├─ LanguageSwitcher.tsx
+│     │  │  │  └─ Modal.tsx
+│     │  │  ├─ content
+│     │  │  │  ├─ index.tsx
+│     │  │  │  ├─ PDFViewer.tsx
+│     │  │  │  ├─ ProtectedViewer.tsx
+│     │  │  │  └─ RichText.tsx
+│     │  │  └─ forms
+│     │  │     ├─ FieldRenderer.tsx
+│     │  │     ├─ FormBuilder.tsx
+│     │  │     └─ index.tsx
+│     │  ├─ context
+│     │  │  ├─ AuthContext.tsx
+│     │  │  ├─ index.tsx
+│     │  │  └─ ThemeContext.tsx
+│     │  ├─ features
+│     │  │  └─ auth
+│     │  │     ├─ ForgotPasswordModal.tsx
+│     │  │     ├─ GoogleCompleteProfileModal.tsx
+│     │  │     ├─ LoginForm.tsx
+│     │  │     └─ RegisterForm.tsx
+│     │  ├─ hooks
+│     │  │  ├─ index.ts
+│     │  │  ├─ useAuth.ts
+│     │  │  ├─ useTheme.ts
+│     │  │  └─ useToast.ts
+│     │  ├─ i18n
+│     │  │  ├─ index.ts
+│     │  │  └─ locales
+│     │  │     ├─ ar
+│     │  │     │  └─ common.json
+│     │  │     ├─ en
+│     │  │     │  └─ common.json
+│     │  │     └─ fr
+│     │  │        └─ common.json
+│     │  ├─ main.tsx
+│     │  ├─ pages
+│     │  │  ├─ auth
+│     │  │  │  └─ AuthPage.tsx
+│     │  │  ├─ open
+│     │  │  │  ├─ About.tsx
+│     │  │  │  ├─ Contact.tsx
+│     │  │  │  ├─ Home.tsx
+│     │  │  │  └─ Services.tsx
+│     │  │  ├─ student
+│     │  │  │  ├─ index.tsx
+│     │  │  │  ├─ MyCourses.tsx
+│     │  │  │  ├─ Quizzes.tsx
+│     │  │  │  ├─ Requests.tsx
+│     │  │  │  └─ StudentHome.tsx
+│     │  │  └─ teacher
+│     │  │     ├─ Classes.tsx
+│     │  │     ├─ Courses.tsx
+│     │  │     ├─ Dashboard.tsx
+│     │  │     ├─ index.tsx
+│     │  │     └─ Students.tsx
+│     │  ├─ router
+│     │  │  ├─ guards.tsx
+│     │  │  └─ index.tsx
+│     │  ├─ services
+│     │  │  ├─ api.ts
+│     │  │  ├─ brevo.ts
+│     │  │  ├─ firebase.ts
+│     │  │  └─ index.ts
+│     │  ├─ store
+│     │  │  ├─ authSlice.ts
+│     │  │  ├─ courseSlice.ts
+│     │  │  ├─ index.ts
+│     │  │  └─ uiSlice.ts
+│     │  ├─ styles
+│     │  │  ├─ globals.css
+│     │  │  └─ tailwind-base.css
+│     │  ├─ types
+│     │  │  └─ index.ts
+│     │  └─ utils
+│     │     ├─ formatters.ts
+│     │     ├─ helpers.ts
+│     │     ├─ index.ts
+│     │     └─ validators.ts
+│     ├─ tsconfig.app.json
+│     ├─ tsconfig.json
+│     ├─ tsconfig.node.json
+│     └─ vite.config.ts
+├─ firestore.indexes.json
+├─ firestore.rules
+├─ functions
+│  ├─ .eslintrc.js
+│  ├─ package.json
+│  ├─ src
+│  │  ├─ auth
+│  │  │  ├─ checkAuthorizedUser.ts
+│  │  │  ├─ completeProfile.ts
+│  │  │  ├─ index.ts
+│  │  │  ├─ onUserCreate.ts
+│  │  │  └─ validateSignup.ts
+│  │  ├─ email
+│  │  │  └─ index.ts
+│  │  ├─ helpers.ts
+│  │  ├─ index.ts
+│  │  ├─ notifications
+│  │  │  └─ index.ts
+│  │  ├─ reports
+│  │  │  └─ index.ts
+│  │  ├─ storage
+│  │  │  └─ index.ts
+│  │  └─ utils
+│  │     ├─ idGenerator.ts
+│  │     └─ index.ts
+│  ├─ tsconfig.dev.json
+│  └─ tsconfig.json
+├─ package.json
+├─ packages
+│  ├─ config
+│  │  ├─ eslint-config
+│  │  │  ├─ index.js
+│  │  │  └─ package.json
+│  │  ├─ tailwind-config
+│  │  │  ├─ index.ts
+│  │  │  └─ package.json
+│  │  └─ typescript-config
+│  │     ├─ base.json
+│  │     ├─ package.json
+│  │     └─ react.json
+│  ├─ firebase
+│  │  ├─ package.json
+│  │  ├─ src
+│  │  │  ├─ auth.ts
+│  │  │  ├─ firestore.ts
+│  │  │  ├─ index.ts
+│  │  │  ├─ messaging.ts
+│  │  │  └─ storage.ts
+│  │  └─ tsconfig.json
+│  ├─ types
+│  │  ├─ package.json
+│  │  ├─ src
+│  │  │  ├─ course.ts
+│  │  │  ├─ exercise.ts
+│  │  │  ├─ form.ts
+│  │  │  ├─ index.ts
+│  │  │  ├─ quiz.ts
+│  │  │  ├─ request.ts
+│  │  │  └─ user.ts
+│  │  └─ tsconfig.json
+│  └─ ui
+│     ├─ package.json
+│     ├─ src
+│     │  └─ index.ts
+│     └─ tsconfig.json
+├─ pnpm-lock.yaml
+├─ pnpm-workspace.yaml
+├─ project-tree.txt
+├─ README.md
+├─ tsconfig.json
+└─ turbo.json
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo build --filter=docs
 ```
-
-Without global `turbo`:
-
-```sh
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-```
-
-### Develop
-
-To develop all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo dev
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
-```
-
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo dev --filter=web
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-```
-
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo login
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo link
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
