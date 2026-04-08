@@ -23,12 +23,12 @@ import toast from 'react-hot-toast';
 
 const NAV_ITEMS = [
   { to: '/teacher',          label: 'Dashboard',  icon: LayoutDashboard, end: true },
-  { to: '/teacher/classes',  label: 'Classes',    icon: BookOpen },
-  { to: '/teacher/students', label: 'Students',   icon: Users },
-  { to: '/teacher/courses',  label: 'Assignments',icon: GraduationCap },
-  { to: '/teacher/analytics',label: 'Analytics',  icon: BarChart3 },
-  { to: '/teacher/schedule', label: 'Schedule',   icon: CalendarDays },
-  { to: '/teacher/messages', label: 'Messages',   icon: MessageSquare },
+  { to: '/teacher/classes',  label: 'Classes',    icon: BookOpen,end: false},
+  { to: '/teacher/students', label: 'Students',   icon: Users,end: false },
+  { to: '/teacher/courses',  label: 'Assignments',icon: GraduationCap ,end: false},
+  { to: '/teacher/analytics',label: 'Analytics',  icon: BarChart3 ,end: false},
+  { to: '/teacher/schedule', label: 'Schedule',   icon: CalendarDays,end: false },
+  { to: '/teacher/messages', label: 'Messages',   icon: MessageSquare ,end: false},
 ] as const;
 
 // ─── Component ────────────────────────────────────────────────────────────────

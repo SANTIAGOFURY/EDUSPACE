@@ -3,19 +3,165 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTranslation } from 'react-i18next';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { Eye, EyeOff, Mail, Lock, AlertCircle } from 'lucide-react';
 import { signInWithEmail, signInWithGoogle, AppError } from '../../services/auth';
 import type { User } from 'firebase/auth';
+
+// ─── Friendly error system ────────────────────────────────────────────────────
+
+interface FriendlyError {
+  message: string;
+  hint?:   string;
+  action?: { label: string; onClick: () => void };
+}
+
+function getFriendlyLoginError(
+  err: unknown,
+  isFr: boolean,
+  onForgotPassword?: () => void,
+): FriendlyError {
+  const key = err instanceof AppError ? err.i18nKey : '';
+  const raw = err instanceof AppError ? err.message : String(err);
+
+  if (raw && (raw.includes('attempt') || raw.includes('Please wait') || raw.includes('Too many'))) {
+    return { message: raw };
+  }
+
+  const map: Record<string, FriendlyError> = {
+    'errors.invalidCredentials': {
+      message: isFr
+        ? 'Email ou mot de passe incorrect.'
+        : 'Incorrect email or password.',
+      hint: isFr
+        ? 'Vérifiez votre saisie. Les mots de passe sont sensibles à la casse.'
+        : 'Check your input. Passwords are case-sensitive.',
+      action: onForgotPassword
+        ? {
+            label: isFr ? 'Mot de passe oublié ?' : 'Forgot your password?',
+            onClick: onForgotPassword,
+          }
+        : undefined,
+    },
+    'errors.tooManyRequests': {
+      message: isFr
+        ? 'Trop de tentatives de connexion. Compte temporairement verrouillé.'
+        : 'Too many sign-in attempts. Account temporarily locked.',
+      hint: isFr
+        ? 'Attendez quelques minutes avant de réessayer, ou réinitialisez votre mot de passe.'
+        : 'Wait a few minutes before trying again, or reset your password.',
+      action: onForgotPassword
+        ? {
+            label: isFr ? 'Réinitialiser le mot de passe' : 'Reset password',
+            onClick: onForgotPassword,
+          }
+        : undefined,
+    },
+    'errors.userDisabled': {
+      message: isFr
+        ? 'Ce compte a été désactivé.'
+        : 'This account has been disabled.',
+      hint: isFr
+        ? 'Contactez l\'administrateur pour réactiver votre accès.'
+        : 'Contact your administrator to reactivate your access.',
+    },
+    'errors.networkError': {
+      message: isFr ? 'Problème de connexion internet.' : 'Network connection problem.',
+      hint:    isFr ? 'Vérifiez votre connexion et réessayez.' : 'Check your internet connection and try again.',
+    },
+    'errors.popupClosed': {
+      message: isFr
+        ? 'La fenêtre de connexion Google a été fermée.'
+        : 'The Google sign-in window was closed.',
+      hint: isFr ? 'Cliquez à nouveau pour réessayer.' : 'Click again to try once more.',
+    },
+    'errors.popupBlocked': {
+      message: isFr
+        ? 'La fenêtre Google a été bloquée par votre navigateur.'
+        : 'The Google window was blocked by your browser.',
+      hint: isFr
+        ? 'Autorisez les pop-ups pour ce site dans les paramètres de votre navigateur.'
+        : 'Allow pop-ups for this site in your browser settings.',
+    },
+    'errors.accountExistsDifferentProvider': {
+      message: isFr
+        ? 'Un compte existe déjà avec cet email, mais avec un autre mode de connexion.'
+        : 'An account already exists with this email using a different sign-in method.',
+      hint: isFr
+        ? 'Essayez de vous connecter avec email/mot de passe à la place.'
+        : 'Try signing in with email and password instead.',
+    },
+    'errors.genericError': {
+      message: isFr ? 'Une erreur inattendue s\'est produite.' : 'An unexpected error occurred.',
+      hint:    isFr ? 'Rechargez la page et réessayez.' : 'Refresh the page and try again.',
+    },
+  };
+
+  return map[key] ?? {
+    message: isFr ? 'Une erreur inattendue s\'est produite.' : 'An unexpected error occurred.',
+    hint:    isFr ? 'Rechargez la page et réessayez.' : 'Refresh the page and try again.',
+  };
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface LoginFormProps {
   onSuccess:            () => void;
   onGoogleNeedsProfile: (user: User) => void;
-  onForgotPassword:     () => void;   // opens ForgotPasswordModal in AuthPage
+  onForgotPassword:     () => void;
   onSwitchToRegister:   () => void;
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function ErrorBanner({ error }: { error: FriendlyError }) {
+  return (
+    <motion.div
+      role="alert"
+      aria-live="assertive"
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -4 }}
+      transition={{ duration: 0.18 }}
+      className="flex flex-col gap-1.5 px-3.5 py-3 mb-4
+                 rounded-[var(--radius-md)] bg-error-50 border border-error-200"
+    >
+      <div className="flex items-start gap-2.5">
+        <AlertCircle size={15} className="text-error-500 shrink-0 mt-0.5" aria-hidden="true" />
+        <p className="text-xs font-medium text-error-700 leading-relaxed">{error.message}</p>
+      </div>
+      {error.hint && (
+        <p className="text-xs text-error-600 leading-relaxed pl-5">{error.hint}</p>
+      )}
+      {error.action && (
+        <div className="pl-5">
+          <button
+            type="button"
+            onClick={error.action.onClick}
+            className="text-xs font-semibold text-error-700 underline underline-offset-2 hover:text-error-800 cursor-pointer transition-colors"
+          >
+            {error.action.label} →
+          </button>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+function FieldError({ message }: { message: string | undefined }) {
+  if (!message) return null;
+  return (
+    <motion.p
+      role="alert"
+      initial={{ opacity: 0, y: -2 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mt-1.5 flex items-center gap-1.5 text-xs text-error-500"
+    >
+      <AlertCircle size={11} className="shrink-0" aria-hidden="true" />
+      {message}
+    </motion.p>
+  );
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -31,13 +177,16 @@ export function LoginForm({
 
   const [showPassword,    setShowPassword] = useState(false);
   const [isGoogleLoading, setGoogleLoad]   = useState(false);
-  const [formError,       setFormError]    = useState('');
+  const [formError,       setFormError]    = useState<FriendlyError | null>(null);
 
   // ── Schema ────────────────────────────────────────────────────────────────
 
   const schema = z.object({
-    email:    z.string().min(1, t('errors.emailRequired')).email(t('errors.emailInvalid')),
-    password: z.string().min(1, t('errors.passwordRequired')),
+    email:    z.string()
+      .min(1, isFr ? 'L\'adresse email est requise.' : 'Email address is required.')
+      .email(isFr ? 'Cette adresse email n\'est pas valide.' : 'This email address is not valid.'),
+    password: z.string()
+      .min(1, isFr ? 'Le mot de passe est requis.' : 'Password is required.'),
   });
   type FormData = z.infer<typeof schema>;
 
@@ -53,45 +202,41 @@ export function LoginForm({
     `w-full py-2.5 text-sm rounded-[var(--radius-md)] border bg-white transition-all duration-150
     placeholder:text-surface-300 text-surface-900
     focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400
-    ${hasError || formError ? 'border-error-400' : 'border-surface-200 hover:border-surface-300'}`;
-
-  function resolveErrorMessage(err: unknown): string {
-    if (err instanceof AppError) return t(err.i18nKey);
-    return t('errors.genericError');
-  }
+    ${hasError || formError ? 'border-error-400 bg-error-50/30' : 'border-surface-200 hover:border-surface-300'}`;
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const onSubmit = async (data: FormData) => {
-    setFormError('');
+    setFormError(null);
     try {
       const { needsVerification } = await signInWithEmail(data.email, data.password);
 
       if (needsVerification) {
-        // Account exists but email was never verified.
-        // Surface a clear message — user should go through the register flow
-        // or use "Forgot password" to recover. We do NOT re-send a code from
-        // the login form; that path lives in AuthPage via ForgotPasswordModal.
-        setFormError(
-          isFr
-            ? "Votre email n'est pas encore vérifié. Veuillez vous inscrire à nouveau ou contacter le support."
-            : 'Your email is not yet verified. Please sign up again or contact support.',
-        );
+        setFormError({
+          message: isFr
+            ? 'Votre adresse email n\'a pas encore été vérifiée.'
+            : 'Your email address has not been verified yet.',
+          hint: isFr
+            ? 'Vérifiez votre boîte mail pour le lien de confirmation, ou inscrivez-vous à nouveau.'
+            : 'Check your inbox for the confirmation link, or sign up again.',
+        });
         return;
       }
 
       toast.success(t('success.signIn'));
       onSuccess();
     } catch (err) {
-      setFormError(resolveErrorMessage(err));
+      setFormError(getFriendlyLoginError(err, isFr, onForgotPassword));
     }
   };
 
   const handleGoogle = async () => {
-    setFormError('');
+    setFormError(null);
     setGoogleLoad(true);
     try {
-      const { user, needsProfile } = await signInWithGoogle();
+      const result = await signInWithGoogle();
+      if (!result) return; // Redirect initiated, result handled elsewhere
+      const { user, needsProfile } = result;
       if (needsProfile) {
         onGoogleNeedsProfile(user);
       } else {
@@ -104,9 +249,9 @@ export function LoginForm({
         (err.originalCode === 'auth/popup-closed-by-user' ||
          err.originalCode === 'auth/cancelled-popup-request')
       ) {
-        return;
+        return; // silent — user closed the popup intentionally
       }
-      toast.error(resolveErrorMessage(err));
+      setFormError(getFriendlyLoginError(err, isFr, onForgotPassword));
     } finally {
       setGoogleLoad(false);
     }
@@ -152,7 +297,9 @@ export function LoginForm({
           <path d="M3.964 10.706A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.706V4.962H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.038l3.007-2.332z" fill="#FBBC05"/>
           <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.962L3.964 7.294C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
         </svg>
-        {isGoogleLoading ? (isFr ? 'Connexion…' : 'Signing in…') : t('auth.google')}
+        {isGoogleLoading
+          ? (isFr ? 'Connexion…' : 'Signing in…')
+          : t('auth.google')}
       </button>
 
       {/* Divider */}
@@ -163,18 +310,9 @@ export function LoginForm({
       </div>
 
       {/* Error banner */}
-      {formError && (
-        <motion.div
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-start gap-2.5 px-3.5 py-3 mb-4
-                     rounded-[var(--radius-md)] bg-error-50 border border-error-200"
-          role="alert"
-        >
-          <AlertCircle size={15} className="text-error-500 shrink-0 mt-0.5" />
-          <p className="text-xs text-error-700 leading-relaxed">{formError}</p>
-        </motion.div>
-      )}
+      <AnimatePresence>
+        {formError && <ErrorBanner error={formError} />}
+      </AnimatePresence>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         {/* Email */}
@@ -196,11 +334,9 @@ export function LoginForm({
               className={`${inputCls(!!errors.email)} pl-9 pr-4`}
             />
           </div>
-          {errors.email && (
-            <p role="alert" className="mt-1.5 text-xs text-error-500">
-              {errors.email.message}
-            </p>
-          )}
+          <AnimatePresence>
+            {errors.email && <FieldError message={errors.email.message} />}
+          </AnimatePresence>
         </div>
 
         {/* Password */}
@@ -209,10 +345,6 @@ export function LoginForm({
             <label className="block text-sm font-medium text-surface-700">
               {t('auth.password')}
             </label>
-            {/*
-             * Delegates to AuthPage's onForgotPassword → opens ForgotPasswordModal.
-             * No reset or verification logic lives inside LoginForm.
-             */}
             <button
               type="button"
               onClick={onForgotPassword}
@@ -243,11 +375,9 @@ export function LoginForm({
               {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
-          {errors.password && (
-            <p role="alert" className="mt-1.5 text-xs text-error-500">
-              {errors.password.message}
-            </p>
-          )}
+          <AnimatePresence>
+            {errors.password && <FieldError message={errors.password.message} />}
+          </AnimatePresence>
         </div>
 
         <button

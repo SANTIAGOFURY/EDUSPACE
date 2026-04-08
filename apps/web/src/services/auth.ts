@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// services/auth.ts  (updated — resendVerificationCode added)
+// services/auth.ts
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
@@ -22,18 +22,17 @@ import { resolveCustomId, getUserProfileByCustomId } from './db';
 
 // ─── Callable references ──────────────────────────────────────────────────────
 
-const createUserProfileFn       = httpsCallable(fns, 'createUserProfile');
-const checkAuthorizedUserFn     = httpsCallable(fns, 'checkAuthorizedUser');
-const validateSignupFn          = httpsCallable(fns, 'validateSignup');
-const completeProfileFn         = httpsCallable(fns, 'completeProfile');
-const sendVerificationCodeFn    = httpsCallable(fns, 'sendVerificationCode');
-const resendVerificationCodeFn  = httpsCallable(fns, 'resendVerificationCode'); // ← NEW
-const verifyVerificationCodeFn  = httpsCallable(fns, 'verifyVerificationCode');
+const createUserProfileFn      = httpsCallable(fns, 'createUserProfile');
+const checkAuthorizedUserFn    = httpsCallable(fns, 'checkAuthorizedUser');
+const validateSignupFn         = httpsCallable(fns, 'validateSignup');
+const completeProfileFn        = httpsCallable(fns, 'completeProfile');
+const sendVerificationCodeFn   = httpsCallable(fns, 'sendVerificationCode');
+const resendVerificationCodeFn = httpsCallable(fns, 'resendVerificationCode');
+const verifyVerificationCodeFn = httpsCallable(fns, 'verifyVerificationCode');
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface AuthorizedUserMeta {
-  role?:    'student' | 'teacher';
   addedBy?: string;
   addedAt?: unknown;
 }
@@ -71,17 +70,13 @@ function extractServerMessage(err: unknown): string | undefined {
   return undefined;
 }
 
-/**
- * Messages that should be forwarded verbatim to the UI because they carry
- * user-visible state (attempt counts, wait times, expiry notices).
- */
 function isPassthroughMessage(msg: string): boolean {
   return (
     msg.includes('attempt')              ||
     msg.includes('expired')              ||
     msg.includes('Invalid verification') ||
     msg.includes('Too many')             ||
-    msg.includes('Please wait')          // server-side cooldown messages
+    msg.includes('Please wait')
   );
 }
 
@@ -104,28 +99,18 @@ async function callFn<T = unknown>(
 
 // ─── Email verification ───────────────────────────────────────────────────────
 
-/** Called the FIRST time a code is requested (e.g. on registration). */
 export async function sendVerificationCode(
   email: string,
 ): Promise<{ expiresInMinutes: number }> {
   return callFn<{ expiresInMinutes: number }>(sendVerificationCodeFn, { email });
 }
 
-/**
- * Called when the user clicks "Resend code" inside the verification modal.
- * Routes to the dedicated resend endpoint which enforces:
- *   - 60 s server-side cooldown
- *   - 3 resends / 10-min email limit
- *   - 10 resends / hour IP limit
- *   - Invalidates the previous code atomically
- */
 export async function resendVerificationCode(
   email: string,
 ): Promise<{ expiresInMinutes: number }> {
   return callFn<{ expiresInMinutes: number }>(resendVerificationCodeFn, { email });
 }
 
-/** Verifies the 6-digit code entered by the user. */
 export async function verifyVerificationCode(
   email: string,
   code: string,
@@ -152,11 +137,12 @@ export async function validateSignupEmail(email: string): Promise<void> {
 // ─── signUpWithEmail ──────────────────────────────────────────────────────────
 
 export async function signUpWithEmail(
-  email: string,
-  password: string,
+  email:     string,
+  password:  string,
   firstName: string,
-  lastName: string,
-  role: 'student' | 'teacher' = 'student',
+  lastName:  string,
+  username:  string,
+  birthday:  string,
 ): Promise<User> {
   let user: User;
 
@@ -187,8 +173,9 @@ export async function signUpWithEmail(
       displayName: `${firstName} ${lastName}`,
       firstName,
       lastName,
+      username,
+      birthday,
       photoURL:    '',
-      role,
     });
   } catch (err) {
     try { await user.delete(); } catch { /* ignore */ }
@@ -209,7 +196,7 @@ export async function signUpWithEmail(
 // ─── signInWithEmail ──────────────────────────────────────────────────────────
 
 export async function signInWithEmail(
-  email: string,
+  email:    string,
   password: string,
 ): Promise<{ user: User; needsVerification: boolean }> {
   try {
@@ -230,7 +217,7 @@ export async function signInWithEmail(
 // ─── signInWithGoogle ─────────────────────────────────────────────────────────
 
 export async function signInWithGoogle(): Promise<{
-  user: User;
+  user:         User;
   needsProfile: boolean;
 } | null> {
   let user: User;
@@ -254,7 +241,7 @@ export async function signInWithGoogle(): Promise<{
 }
 
 export async function handleGoogleRedirectResult(): Promise<{
-  user: User;
+  user:         User;
   needsProfile: boolean;
 } | null> {
   try {
@@ -267,20 +254,89 @@ export async function handleGoogleRedirectResult(): Promise<{
   }
 }
 
+/**
+ * Called after every successful Google OAuth sign-in (popup or redirect).
+ *
+ * Decision tree:
+ *
+ *  A) Returning user (userLookup doc already exists + profileComplete=true)
+ *     → Skip the authorization gate. Just sign them in.
+ *
+ *  B) Returning user mid-onboarding (userLookup exists but profileComplete=false)
+ *     → Skip the authorization gate. Let them finish their profile.
+ *
+ *  C) Brand-new user (no userLookup doc)
+ *     → Run checkAuthorizedUser first.
+ *       • Not authorized  → sign out immediately, throw signupBlocked error.
+ *       • Authorized      → create profile stub, return needsProfile: true.
+ *
+ * Why this order matters:
+ *   checkAuthorizedUser also throws 'already-exists' when a Firebase Auth
+ *   account already exists for the email. For Google sign-ins the account
+ *   always exists (Google just authenticated them), so calling
+ *   checkAuthorizedUser on a returning user would always throw. We must
+ *   check for an existing profile FIRST and short-circuit before hitting
+ *   the authorization function.
+ */
 async function finaliseGoogleSignIn(user: User): Promise<{
-  user: User;
+  user:         User;
   needsProfile: boolean;
 }> {
+  const email = user.email ?? '';
+
+  // ── Case A & B: check for an existing Firestore profile ──────────────────
+  try {
+    const customId = await resolveCustomId(user.uid);
+
+    if (customId) {
+      const profileSnap     = await getUserProfileByCustomId(customId);
+      const data            = profileSnap.data();
+      const profileComplete = data?.profileComplete ?? false;
+
+      // Case A — fully onboarded returning user
+      if (profileComplete) return { user, needsProfile: false };
+
+      // Case B — started onboarding but never finished
+      return { user, needsProfile: true };
+    }
+  } catch {
+    // resolveCustomId throws when the lookup doc doesn't exist yet.
+    // This means it's a brand-new user → fall through to Case C.
+  }
+
+  // ── Case C: brand-new user — enforce the authorization allowlist ──────────
+  //
+  // checkAuthorizedUser will:
+  //   • throw 'permission-denied'  → email not in authorizedUsers
+  //   • throw 'already-exists'     → Firebase Auth account exists (won't happen
+  //                                   here because we only reach this branch when
+  //                                   resolveCustomId found no Firestore doc, but
+  //                                   guard it anyway)
+  //   • return normally            → authorized and ready to create a profile
+  try {
+    await checkAuthorizedUser(email);
+  } catch (err) {
+    // Unauthorized or any unexpected error:
+    // sign the user out immediately so they don't sit in a half-authenticated
+    // state, then surface the error to the UI.
+    try { await signOut(auth); } catch { /* ignore */ }
+    throw err; // already an AppError from callFn
+  }
+
+  // ── Authorized — create the stub profile ─────────────────────────────────
   try {
     await createUserProfileFn({
-      email:       user.email       ?? '',
+      email,
       provider:    'google.com',
       displayName: user.displayName ?? '',
       photoURL:    user.photoURL    ?? '',
     });
   } catch (err) {
     const code = extractCode(err);
+    // 'already-exists' is a harmless race condition: two tabs finishing at the
+    // same time. Safe to continue.
     if (code !== 'already-exists') {
+      try { await signOut(auth); } catch { /* ignore */ }
       throw new AppError(getFirebaseErrorKey(code), undefined, code);
     }
   }
@@ -291,17 +347,7 @@ async function finaliseGoogleSignIn(user: User): Promise<{
     console.warn('finaliseGoogleSignIn: token refresh failed (non-fatal)');
   }
 
-  try {
-    const customId = await resolveCustomId(user.uid);
-    if (!customId) return { user, needsProfile: true };
-
-    const profileSnap     = await getUserProfileByCustomId(customId);
-    const profileComplete = profileSnap.data()?.profileComplete ?? false;
-    return { user, needsProfile: !profileComplete };
-  } catch {
-    console.warn('finaliseGoogleSignIn: profile check failed, assuming needsProfile=true');
-    return { user, needsProfile: true };
-  }
+  return { user, needsProfile: true };
 }
 
 // ─── completeUserProfile ──────────────────────────────────────────────────────
@@ -309,7 +355,8 @@ async function finaliseGoogleSignIn(user: User): Promise<{
 export async function completeUserProfile(data: {
   firstName: string;
   lastName:  string;
-  role:      'student' | 'teacher';
+  username:  string;
+  birthday:  string;
   phone?:    string;
 }): Promise<void> {
   await callFn(completeProfileFn, data);

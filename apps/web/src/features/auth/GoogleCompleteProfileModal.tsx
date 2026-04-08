@@ -3,10 +3,14 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Phone, GraduationCap, BookOpen, Sparkles, AlertCircle, Loader2 } from 'lucide-react';
+import {
+  User, Phone, Sparkles, AlertCircle, Loader2, AtSign, Calendar, Info,
+} from 'lucide-react';
 import { completeUserProfile, AppError } from '../../services/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { useState } from 'react';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Props {
   isOpen: boolean;
@@ -14,30 +18,121 @@ interface Props {
   onComplete: () => void;
 }
 
-const ROLES = [
-  { value: 'student', icon: GraduationCap, label: 'Student', labelFr: 'Étudiant' },
-  { value: 'teacher', icon: BookOpen,      label: 'Teacher', labelFr: 'Enseignant' },
-] as const;
+// ─── Friendly error resolution ────────────────────────────────────────────────
+
+interface FriendlyError {
+  message: string;
+  hint?:   string;
+}
+
+function getFriendlyError(err: unknown, isFr: boolean): FriendlyError {
+  const key = err instanceof AppError ? err.i18nKey : '';
+  const raw = err instanceof AppError ? err.message : String(err);
+
+  if (raw && (raw.includes('attempt') || raw.includes('Please wait') || raw.includes('Too many'))) {
+    return { message: raw };
+  }
+
+  const map: Record<string, FriendlyError> = {
+    'errors.tooManyRequests': {
+      message: isFr ? 'Trop de tentatives.' : 'Too many attempts.',
+      hint:    isFr ? 'Veuillez patienter quelques minutes avant de réessayer.' : 'Please wait a few minutes before trying again.',
+    },
+    'errors.networkError': {
+      message: isFr ? 'Problème de connexion internet.' : 'Network connection problem.',
+      hint:    isFr ? 'Vérifiez votre connexion et réessayez.' : 'Check your internet connection and try again.',
+    },
+    'errors.unauthenticated': {
+      message: isFr ? 'Session expirée.' : 'Your session has expired.',
+      hint:    isFr ? 'Rechargez la page et reconnectez-vous.' : 'Reload the page and sign in again.',
+    },
+    'errors.genericError': {
+      message: isFr ? 'Une erreur inattendue s\'est produite.' : 'An unexpected error occurred.',
+      hint:    isFr ? 'Rechargez la page et réessayez.' : 'Refresh the page and try again.',
+    },
+  };
+
+  return map[key] ?? {
+    message: isFr ? 'Une erreur inattendue s\'est produite.' : 'An unexpected error occurred.',
+    hint:    isFr ? 'Rechargez la page et réessayez.' : 'Refresh the page and try again.',
+  };
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function FieldError({ message }: { message: string | undefined }) {
+  if (!message) return null;
+  return (
+    <motion.p
+      role="alert"
+      initial={{ opacity: 0, y: -2 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mt-1 flex items-center gap-1.5 text-xs text-error-500"
+    >
+      <AlertCircle size={11} className="shrink-0" aria-hidden="true" />
+      {message}
+    </motion.p>
+  );
+}
+
+function FieldHint({ message }: { message: string }) {
+  return (
+    <p className="mt-1 flex items-center gap-1.5 text-xs text-surface-400">
+      <Info size={11} className="shrink-0" aria-hidden="true" />
+      {message}
+    </p>
+  );
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export function GoogleCompleteProfileModal({ isOpen, user, onComplete }: Props) {
   const { t, i18n } = useTranslation();
   const isFr = i18n.language?.startsWith('fr');
 
-  const [formError, setFormError]   = useState('');
-  // Separate flag: true after the Cloud Function succeeded but while we wait
-  // for AuthContext to confirm profileComplete. Keeps the button in a loading
-  // state and prevents double-submission.
-  const [waitingForContext, setWaitingForContext] = useState(false);
+  const [formError, setFormError]           = useState<FriendlyError | null>(null);
+  const [waitingForContext, setWaiting]     = useState(false);
 
   const [defaultFirst = '', defaultLast = ''] = (user.displayName ?? '').split(' ');
 
+  // ── Birthday bounds ──────────────────────────────────────────────────────
+  const today  = new Date();
+  const minAge = new Date(today.getFullYear() - 6,   today.getMonth(), today.getDate());
+  const maxAge = new Date(today.getFullYear() - 120,  today.getMonth(), today.getDate());
+
+  // ── Schema ────────────────────────────────────────────────────────────────
   const schema = z.object({
-    firstName: z.string().min(2, isFr ? 'Minimum 2 caractères' : 'At least 2 characters').max(50),
-    lastName:  z.string().min(2, isFr ? 'Minimum 2 caractères' : 'At least 2 characters').max(50),
-    role:      z.enum(['student', 'teacher']),
+    firstName: z
+      .string()
+      .min(2, isFr ? 'Le prénom doit contenir au moins 2 caractères.' : 'First name must be at least 2 characters.')
+      .max(50, isFr ? 'Le prénom est trop long.' : 'First name is too long.'),
+    lastName: z
+      .string()
+      .min(2, isFr ? 'Le nom doit contenir au moins 2 caractères.' : 'Last name must be at least 2 characters.')
+      .max(50, isFr ? 'Le nom est trop long.' : 'Last name is too long.'),
+    username: z
+      .string()
+      .min(3, isFr ? 'Le nom d\'utilisateur doit avoir au moins 3 caractères.' : 'Username must be at least 3 characters.')
+      .max(30, isFr ? 'Nom d\'utilisateur trop long (max 30).' : 'Username too long (max 30).')
+      .regex(
+        /^[a-z0-9_.-]+$/,
+        isFr
+          ? 'Uniquement lettres minuscules, chiffres, tirets, points et underscores.'
+          : 'Only lowercase letters, numbers, hyphens, dots, and underscores.',
+      ),
+    birthday: z
+      .string()
+      .min(1, isFr ? 'La date de naissance est requise.' : 'Date of birth is required.')
+      .refine(
+        (val) => {
+          const d = new Date(val);
+          return !isNaN(d.getTime()) && d <= minAge && d >= maxAge;
+        },
+        isFr ? 'Veuillez entrer une date de naissance valide.' : 'Please enter a valid date of birth.',
+      ),
     phone: z
       .string()
-      .regex(/^\+?[\d\s\-()]{7,20}$/, isFr ? 'Numéro invalide' : 'Invalid phone number')
+      .regex(/^\+?[\d\s\-()]{7,20}$/, isFr ? 'Numéro de téléphone invalide.' : 'Invalid phone number.')
       .optional()
       .or(z.literal('')),
   });
@@ -47,50 +142,55 @@ export function GoogleCompleteProfileModal({ isOpen, user, onComplete }: Props) 
   const {
     register,
     handleSubmit,
-    watch,
-    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { firstName: defaultFirst, lastName: defaultLast, role: 'student', phone: '' },
+    defaultValues: {
+      firstName: defaultFirst,
+      lastName:  defaultLast,
+      username:  '',
+      birthday:  '',
+      phone:     '',
+    },
   });
 
-  const selectedRole = watch('role');
+  // ── Submit ────────────────────────────────────────────────────────────────
 
   const onSubmit = async (data: FormData) => {
-    setFormError('');
+    setFormError(null);
     try {
       await completeUserProfile({
         firstName: data.firstName,
         lastName:  data.lastName,
-        role:      data.role,
+        username:  data.username,
+        birthday:  data.birthday,
         phone:     data.phone || undefined,
       });
-
-      // Cloud Function succeeded. Tell the parent to start watching
-      // AuthContext for profileComplete. We show a waiting spinner until
-      // the parent unmounts this modal (after context confirms the write).
-      setWaitingForContext(true);
+      setWaiting(true);
       onComplete();
-
     } catch (err) {
-      setWaitingForContext(false);
-      setFormError(err instanceof AppError ? t(err.i18nKey) : t('errors.genericError'));
+      setWaiting(false);
+      setFormError(getFriendlyError(err, isFr));
     }
   };
+
+  // ── Input class ───────────────────────────────────────────────────────────
 
   const inputCls = (hasError: boolean) =>
     `w-full px-3 py-2.5 text-sm rounded-[var(--radius-md)] border bg-white
     transition-all duration-150 placeholder:text-surface-300 text-surface-900
     focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400
-    ${hasError ? 'border-error-400' : 'border-surface-200 hover:border-surface-300'}`;
+    ${hasError ? 'border-error-400 bg-error-50/30' : 'border-surface-200 hover:border-surface-300'}`;
 
   const isBusy = isSubmitting || waitingForContext;
+
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <AnimatePresence>
       {isOpen && (
         <>
+          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -100,6 +200,7 @@ export function GoogleCompleteProfileModal({ isOpen, user, onComplete }: Props) 
             aria-hidden="true"
           />
 
+          {/* Dialog */}
           <motion.div
             role="dialog"
             aria-modal="true"
@@ -114,7 +215,7 @@ export function GoogleCompleteProfileModal({ isOpen, user, onComplete }: Props) 
               className="w-full max-w-md bg-white rounded-[var(--radius-xl)] shadow-2xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header */}
+              {/* ── Header ── */}
               <div className="bg-gradient-to-r from-primary-600 to-primary-500 px-7 pt-7 pb-6">
                 <div className="flex items-start justify-between">
                   <div>
@@ -155,20 +256,42 @@ export function GoogleCompleteProfileModal({ isOpen, user, onComplete }: Props) 
                 </div>
               </div>
 
-              {/* Form */}
-              <form onSubmit={handleSubmit(onSubmit)} noValidate className="px-7 py-6 space-y-4">
+              {/* ── Form ── */}
+              <form
+                onSubmit={handleSubmit(onSubmit)}
+                noValidate
+                className="px-7 py-6 space-y-4 max-h-[70vh] overflow-y-auto"
+              >
+                {/* Error banner */}
+                <AnimatePresence>
+                  {formError && (
+                    <motion.div
+                      role="alert"
+                      aria-live="assertive"
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="flex flex-col gap-1.5 px-3.5 py-3 rounded-[var(--radius-md)] bg-error-50 border border-error-200"
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <AlertCircle size={15} className="text-error-500 shrink-0 mt-0.5" aria-hidden="true" />
+                        <p className="text-xs font-medium text-error-700 leading-relaxed">{formError.message}</p>
+                      </div>
+                      {formError.hint && (
+                        <p className="text-xs text-error-600 leading-relaxed pl-5">{formError.hint}</p>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-                {formError && (
-                  <motion.div
-                    role="alert"
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex items-start gap-2.5 px-3.5 py-3 rounded-[var(--radius-md)] bg-error-50 border border-error-200"
-                  >
-                    <AlertCircle size={15} className="text-error-500 shrink-0 mt-0.5" aria-hidden="true" />
-                    <p className="text-xs text-error-700 leading-relaxed">{formError}</p>
-                  </motion.div>
-                )}
+                {/* Google account indicator */}
+                <div className="px-3 py-2.5 rounded-[var(--radius-md)] bg-surface-50 border border-surface-200 flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-success-500 shrink-0" aria-hidden="true" />
+                  <span className="text-xs text-surface-500">
+                    {isFr ? 'Compte Google :' : 'Google account:'}{' '}
+                    <span className="font-medium text-surface-700">{user.email}</span>
+                  </span>
+                </div>
 
                 {/* Name */}
                 <div className="grid grid-cols-2 gap-3">
@@ -176,17 +299,22 @@ export function GoogleCompleteProfileModal({ isOpen, user, onComplete }: Props) 
                     <label className="block text-xs font-medium text-surface-600 mb-1.5">
                       {t('auth.firstName')}
                     </label>
-                    <input
-                      {...register('firstName')}
-                      type="text"
-                      autoComplete="given-name"
-                      placeholder={isFr ? 'Prénom' : 'First name'}
-                      aria-invalid={!!errors.firstName}
-                      className={inputCls(!!errors.firstName)}
-                    />
-                    {errors.firstName && (
-                      <p role="alert" className="mt-1 text-xs text-error-500">{errors.firstName.message}</p>
-                    )}
+                    <div className="relative">
+                      <User
+                        size={14}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none"
+                        aria-hidden="true"
+                      />
+                      <input
+                        {...register('firstName')}
+                        type="text"
+                        autoComplete="given-name"
+                        placeholder={isFr ? 'Prénom' : 'First name'}
+                        aria-invalid={!!errors.firstName}
+                        className={`${inputCls(!!errors.firstName)} pl-8`}
+                      />
+                    </div>
+                    <FieldError message={errors.firstName?.message} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-surface-600 mb-1.5">
@@ -200,68 +328,95 @@ export function GoogleCompleteProfileModal({ isOpen, user, onComplete }: Props) 
                       aria-invalid={!!errors.lastName}
                       className={inputCls(!!errors.lastName)}
                     />
-                    {errors.lastName && (
-                      <p role="alert" className="mt-1 text-xs text-error-500">{errors.lastName.message}</p>
-                    )}
+                    <FieldError message={errors.lastName?.message} />
                   </div>
                 </div>
 
-                {/* Role */}
+                {/* Username */}
                 <div>
-                  <label className="block text-xs font-medium text-surface-600 mb-2">
-                    {isFr ? 'Je suis…' : 'I am a…'}
+                  <label className="block text-xs font-medium text-surface-600 mb-1.5">
+                    {isFr ? 'Nom d\'utilisateur' : 'Username'}
                   </label>
-                  <div className="grid grid-cols-2 gap-2.5" role="group" aria-label={isFr ? 'Rôle' : 'Role'}>
-                    {ROLES.map(({ value, icon: Icon, label, labelFr }) => (
-                      <button
-                        key={value}
-                        type="button"
-                        disabled={isBusy}
-                        onClick={() => setValue('role', value)}
-                        aria-pressed={selectedRole === value}
-                        className={`flex items-center gap-2.5 px-4 py-3 rounded-[var(--radius-md)]
-                                    border text-sm font-medium transition-all duration-150 cursor-pointer
-                                    disabled:opacity-50 disabled:cursor-not-allowed
-                                    ${selectedRole === value
-                                      ? 'border-primary-500 bg-primary-50 text-primary-700'
-                                      : 'border-surface-200 bg-white text-surface-600 hover:border-surface-300 hover:bg-surface-50'}`}
-                      >
-                        <Icon size={16} className={selectedRole === value ? 'text-primary-600' : 'text-surface-400'} aria-hidden="true" />
-                        {isFr ? labelFr : label}
-                      </button>
-                    ))}
+                  <div className="relative">
+                    <AtSign
+                      size={14}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none"
+                      aria-hidden="true"
+                    />
+                    <input
+                      {...register('username')}
+                      type="text"
+                      autoComplete="username"
+                      placeholder="john_doe"
+                      aria-invalid={!!errors.username}
+                      className={`${inputCls(!!errors.username)} pl-8`}
+                    />
                   </div>
+                  {errors.username
+                    ? <FieldError message={errors.username.message} />
+                    : <FieldHint message={
+                        isFr
+                          ? 'Lettres minuscules, chiffres et underscores uniquement.'
+                          : 'Lowercase letters, numbers, and underscores only.'
+                      } />
+                  }
                 </div>
 
-                {/* Phone */}
+                {/* Birthday */}
+                <div>
+                  <label className="block text-xs font-medium text-surface-600 mb-1.5">
+                    {isFr ? 'Date de naissance' : 'Date of birth'}
+                  </label>
+                  <div className="relative">
+                    <Calendar
+                      size={14}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none"
+                      aria-hidden="true"
+                    />
+                    <input
+                      {...register('birthday')}
+                      type="date"
+                      autoComplete="bday"
+                      max={minAge.toISOString().split('T')[0]}
+                      min={maxAge.toISOString().split('T')[0]}
+                      aria-invalid={!!errors.birthday}
+                      className={`${inputCls(!!errors.birthday)} pl-8`}
+                    />
+                  </div>
+                  {errors.birthday
+                    ? <FieldError message={errors.birthday.message} />
+                    : <FieldHint message={
+                        isFr
+                          ? 'Votre date de naissance ne sera pas partagée publiquement.'
+                          : 'Your date of birth won\'t be shared publicly.'
+                      } />
+                  }
+                </div>
+
+                {/* Phone (optional) */}
                 <div>
                   <label className="block text-xs font-medium text-surface-600 mb-1.5">
                     {isFr ? 'Téléphone' : 'Phone'}{' '}
-                    <span className="text-surface-400 font-normal">({isFr ? 'optionnel' : 'optional'})</span>
+                    <span className="text-surface-400 font-normal">
+                      ({isFr ? 'optionnel' : 'optional'})
+                    </span>
                   </label>
                   <div className="relative">
-                    <Phone size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none" aria-hidden="true" />
+                    <Phone
+                      size={14}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none"
+                      aria-hidden="true"
+                    />
                     <input
                       {...register('phone')}
                       type="tel"
                       autoComplete="tel"
                       placeholder="+212 6 00 00 00 00"
                       aria-invalid={!!errors.phone}
-                      className={`${inputCls(!!errors.phone)} pl-9`}
+                      className={`${inputCls(!!errors.phone)} pl-8`}
                     />
                   </div>
-                  {errors.phone && (
-                    <p role="alert" className="mt-1 text-xs text-error-500">{errors.phone.message}</p>
-                  )}
-                </div>
-
-                {/* Email display */}
-                <div className="px-3 py-2.5 rounded-[var(--radius-md)] bg-surface-50 border border-surface-200 flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-success-500 shrink-0" aria-hidden="true" />
-                  <span className="text-xs text-surface-500">
-                    {isFr ? 'Compte Google connecté :' : 'Google account:'}{' '}
-                    <span className="font-medium text-surface-700">{user.email}</span>
-                  </span>
+                  {errors.phone && <FieldError message={errors.phone.message} />}
                 </div>
 
                 {/* Submit */}

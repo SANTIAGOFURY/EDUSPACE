@@ -6,8 +6,8 @@ import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import {
-  Eye, EyeOff, Mail, Lock, User, GraduationCap, BookOpen,
-  CheckCircle2, XCircle, ArrowRight, Loader2, AlertCircle,
+  Eye, EyeOff, Mail, Lock, User, AtSign, Calendar,
+  CheckCircle2, XCircle, ArrowRight, Loader2, AlertCircle, Info,
 } from 'lucide-react';
 import {
   signUpWithEmail,
@@ -42,10 +42,98 @@ const STRENGTH_COLORS = [
 const STRENGTH_LABELS    = ['', 'Weak', 'Fair', 'Good', 'Strong'];
 const STRENGTH_LABELS_FR = ['', 'Faible', 'Passable', 'Bon', 'Fort'];
 
-const ROLES = [
-  { value: 'student', icon: GraduationCap, label: 'Student', labelFr: 'Étudiant' },
-  { value: 'teacher', icon: BookOpen,      label: 'Teacher', labelFr: 'Enseignant' },
-] as const;
+// ─── Friendly error messages ──────────────────────────────────────────────────
+
+interface FriendlyError {
+  message: string;
+  hint?:   string;
+  action?: { label: string; onClick: () => void };
+}
+
+function getFriendlyError(
+  err: unknown,
+  isFr: boolean,
+  onSwitchToLogin?: () => void,
+): FriendlyError {
+  const key = err instanceof AppError ? err.i18nKey : '';
+  const raw = err instanceof AppError ? err.message : String(err);
+
+  // Map known i18n keys → friendly copy
+  const friendlyMap: Record<string, FriendlyError> = {
+    'errors.emailInUse': {
+      message: isFr
+        ? 'Un compte existe déjà avec cette adresse email.'
+        : 'An account already exists with this email address.',
+      hint: isFr
+        ? 'Essayez de vous connecter, ou utilisez "Mot de passe oublié" si vous avez perdu l\'accès.'
+        : 'Try signing in instead, or use "Forgot password" if you lost access.',
+      action: onSwitchToLogin
+        ? { label: isFr ? 'Se connecter' : 'Sign in', onClick: onSwitchToLogin }
+        : undefined,
+    },
+    'errors.signupBlocked': {
+      message: isFr
+        ? 'Votre adresse email n\'est pas autorisée à créer un compte.'
+        : 'Your email address is not authorised to create an account.',
+      hint: isFr
+        ? 'Contactez l\'administrateur pour obtenir l\'accès.'
+        : 'Contact your administrator to request access.',
+    },
+    'errors.emailInvalid': {
+      message: isFr ? 'Cette adresse email n\'est pas valide.' : 'This email address is not valid.',
+      hint: isFr ? 'Vérifiez qu\'il n\'y a pas de faute de frappe.' : 'Check for any typos.',
+    },
+    'errors.weakPassword': {
+      message: isFr ? 'Votre mot de passe est trop simple.' : 'Your password is too simple.',
+      hint: isFr
+        ? 'Utilisez au moins 8 caractères avec majuscules, chiffres et symboles.'
+        : 'Use at least 8 characters with uppercase letters, numbers, and symbols.',
+    },
+    'errors.networkError': {
+      message: isFr ? 'Problème de connexion internet.' : 'Network connection problem.',
+      hint: isFr
+        ? 'Vérifiez votre connexion et réessayez.'
+        : 'Check your internet connection and try again.',
+    },
+    'errors.tooManyRequests': {
+      message: isFr
+        ? 'Trop de tentatives. Veuillez patienter quelques minutes.'
+        : 'Too many attempts. Please wait a few minutes.',
+      hint: isFr
+        ? 'Votre compte est temporairement protégé. Réessayez dans 5 minutes.'
+        : 'Your account is temporarily protected. Try again in 5 minutes.',
+    },
+    'errors.genericError': {
+      message: isFr
+        ? 'Une erreur inattendue s\'est produite.'
+        : 'An unexpected error occurred.',
+      hint: isFr
+        ? 'Rechargez la page et réessayez. Si le problème persiste, contactez le support.'
+        : 'Refresh the page and try again. If the problem persists, contact support.',
+    },
+    'errors.notFound': {
+      message: isFr
+        ? 'Email non trouvé dans la liste des utilisateurs autorisés.'
+        : 'Email not found in the list of authorised users.',
+      hint: isFr
+        ? 'Vérifiez l\'orthographe ou contactez votre administrateur.'
+        : 'Double-check the spelling or contact your administrator.',
+    },
+  };
+
+  // Passthrough messages from the server (attempt counts, cooldowns, etc.)
+  if (raw && (
+    raw.includes('attempt') || raw.includes('expired') ||
+    raw.includes('Please wait') || raw.includes('Too many')
+  )) {
+    return { message: raw };
+  }
+
+  return friendlyMap[key] ?? {
+    message: isFr ? 'Une erreur inattendue s\'est produite.' : 'An unexpected error occurred.',
+    hint:    isFr ? 'Rechargez la page et réessayez.' : 'Refresh the page and try again.',
+  };
+}
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -58,6 +146,77 @@ const emailSchema = z.object({
 interface RegisterFormProps {
   onSuccess: () => void;
   onSwitchToLogin: () => void;
+}
+
+// ─── Error Banner ─────────────────────────────────────────────────────────────
+
+function ErrorBanner({
+  error,
+  className = '',
+}: {
+  error: FriendlyError;
+  className?: string;
+}) {
+  return (
+    <motion.div
+      role="alert"
+      aria-live="assertive"
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -4 }}
+      transition={{ duration: 0.18 }}
+      className={`flex flex-col gap-1.5 px-3.5 py-3 rounded-[var(--radius-md)] bg-error-50 border border-error-200 ${className}`}
+    >
+      <div className="flex items-start gap-2.5">
+        <AlertCircle size={15} className="text-error-500 shrink-0 mt-0.5" aria-hidden="true" />
+        <p className="text-xs font-medium text-error-700 leading-relaxed">{error.message}</p>
+      </div>
+      {error.hint && (
+        <div className="flex items-start gap-2.5 pl-5">
+          <p className="text-xs text-error-600 leading-relaxed">{error.hint}</p>
+        </div>
+      )}
+      {error.action && (
+        <div className="pl-5">
+          <button
+            type="button"
+            onClick={error.action.onClick}
+            className="text-xs font-semibold text-error-700 underline underline-offset-2 hover:text-error-800 cursor-pointer transition-colors"
+          >
+            {error.action.label} →
+          </button>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+// ─── Field Error ──────────────────────────────────────────────────────────────
+
+function FieldError({ message }: { message: string | undefined }) {
+  if (!message) return null;
+  return (
+    <motion.p
+      role="alert"
+      initial={{ opacity: 0, y: -2 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mt-1.5 flex items-center gap-1.5 text-xs text-error-500"
+    >
+      <AlertCircle size={11} className="shrink-0" aria-hidden="true" />
+      {message}
+    </motion.p>
+  );
+}
+
+// ─── Field Hint ───────────────────────────────────────────────────────────────
+
+function FieldHint({ message }: { message: string }) {
+  return (
+    <p className="mt-1 flex items-center gap-1.5 text-xs text-surface-400">
+      <Info size={11} className="shrink-0" aria-hidden="true" />
+      {message}
+    </p>
+  );
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -74,7 +233,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
   // ── Email gate state ──
   const [isChecking, setIsChecking]       = useState(false);
   const [isSendingCode, setIsSendingCode] = useState(false);
-  const [gateError, setGateError]         = useState('');
+  const [gateError, setGateError]         = useState<FriendlyError | null>(null);
 
   // ── Verification modal state ──
   const [showVerifyModal, setShowVerifyModal] = useState(false);
@@ -82,7 +241,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
   const [codeExpiresIn, setCodeExpiresIn]     = useState<number | undefined>(undefined);
 
   // ── Register form state ──
-  const [formError, setFormError]         = useState('');
+  const [formError, setFormError]         = useState<FriendlyError | null>(null);
   const [showPassword, setShowPassword]   = useState(false);
   const [showConfirm, setShowConfirm]     = useState(false);
   const [passwordValue, setPasswordValue] = useState('');
@@ -97,14 +256,44 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
   } = useForm<{ email: string }>({ resolver: zodResolver(emailSchema) });
 
   // ── Register schema ──
+  const today = new Date();
+  const minAge = new Date(today.getFullYear() - 6, today.getMonth(), today.getDate());
+  const maxAge = new Date(today.getFullYear() - 120, today.getMonth(), today.getDate());
+
   const registerSchema = z.object({
-    firstName:       z.string().min(2, t('errors.firstNameRequired')),
-    lastName:        z.string().min(2, t('errors.lastNameRequired')),
-    role:            z.enum(['student', 'teacher']),
-    password:        z.string().min(8, t('errors.passwordMinLength')),
-    confirmPassword: z.string().min(1, t('errors.passwordRequired')),
+    firstName: z
+      .string()
+      .min(2, isFr ? 'Le prénom doit contenir au moins 2 caractères.' : 'First name must be at least 2 characters.')
+      .max(50, isFr ? 'Le prénom est trop long.' : 'First name is too long.'),
+    lastName: z
+      .string()
+      .min(2, isFr ? 'Le nom doit contenir au moins 2 caractères.' : 'Last name must be at least 2 characters.')
+      .max(50, isFr ? 'Le nom est trop long.' : 'Last name is too long.'),
+    username: z
+      .string()
+      .min(3, isFr ? 'Le nom d\'utilisateur doit avoir au moins 3 caractères.' : 'Username must be at least 3 characters.')
+      .max(30, isFr ? 'Le nom d\'utilisateur est trop long (max 30).' : 'Username is too long (max 30).')
+      .regex(
+        /^[a-z0-9_.-]+$/,
+        isFr
+          ? 'Uniquement des lettres minuscules, chiffres, tirets, points et underscores.'
+          : 'Only lowercase letters, numbers, hyphens, dots, and underscores.',
+      ),
+    birthday: z
+      .string()
+      .min(1, isFr ? 'La date de naissance est requise.' : 'Date of birth is required.')
+      .refine((val) => {
+        const d = new Date(val);
+        return !isNaN(d.getTime()) && d <= minAge && d >= maxAge;
+      }, isFr ? 'Veuillez entrer une date de naissance valide.' : 'Please enter a valid date of birth.'),
+    password: z
+      .string()
+      .min(8, isFr ? 'Le mot de passe doit contenir au moins 8 caractères.' : 'Password must be at least 8 characters.'),
+    confirmPassword: z
+      .string()
+      .min(1, isFr ? 'Veuillez confirmer votre mot de passe.' : 'Please confirm your password.'),
   }).refine((d) => d.password === d.confirmPassword, {
-    message: t('errors.passwordMismatch'),
+    message: isFr ? 'Les mots de passe ne correspondent pas.' : 'Passwords do not match.',
     path:    ['confirmPassword'],
   });
 
@@ -113,27 +302,29 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
   const {
     register,
     handleSubmit,
-    watch,
-    setValue,
     formState: { errors, isSubmitting },
-  } = useForm<RegisterData>({
-    resolver:      zodResolver(registerSchema),
-    defaultValues: { role: 'student' },
-  });
+  } = useForm<RegisterData>({ resolver: zodResolver(registerSchema) });
 
-  const selectedRole = watch('role');
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
-  // ── Error resolver ────────────────────────────────────────────────────────
+  const resolveFriendly = useCallback(
+    (err: unknown) => getFriendlyError(err, isFr, onSwitchToLogin),
+    [isFr, onSwitchToLogin],
+  );
 
-  function resolveError(err: unknown): string {
-    if (err instanceof AppError) return t(err.i18nKey);
-    return t('errors.genericError');
-  }
+  const inputCls = useCallback(
+    (hasError: boolean) =>
+      `w-full py-2.5 text-sm rounded-[var(--radius-md)] border bg-white transition-all duration-150
+       placeholder:text-surface-300 text-surface-900
+       focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400
+       ${hasError ? 'border-error-400 bg-error-50/30' : 'border-surface-200 hover:border-surface-300'}`,
+    [],
+  );
 
-  // ── Step 1: check authorized email + open verification modal ─────────────
+  // ── Step 1: email gate ────────────────────────────────────────────────────
 
   const onEmailCheck = async ({ email }: { email: string }) => {
-    setGateError('');
+    setGateError(null);
     setIsChecking(true);
     try {
       const normalized = email.trim().toLowerCase();
@@ -146,42 +337,43 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
       setCodeExpiresIn(expiresInMinutes);
       setShowVerifyModal(true);
     } catch (err) {
-      setGateError(resolveError(err));
+      setGateError(resolveFriendly(err));
     } finally {
       setIsChecking(false);
       setIsSendingCode(false);
     }
   };
 
-  // ── Verification modal callbacks ──────────────────────────────────────────
+  // ── Verification callbacks ────────────────────────────────────────────────
 
   const handleVerified = () => {
     setShowVerifyModal(false);
     setStep('register');
   };
 
-  const handleVerifyBack = () => {
-    setShowVerifyModal(false);
-  };
+  const handleVerifyBack = () => setShowVerifyModal(false);
 
   // ── Step 2: register ──────────────────────────────────────────────────────
 
   const onSubmit = async (data: RegisterData) => {
-    setFormError('');
+    setFormError(null);
 
     if (score < 3) {
-      setFormError(
-        isFr
-          ? 'Votre mot de passe est trop faible. Ajoutez des majuscules, chiffres ou caractères spéciaux.'
-          : 'Your password is too weak. Add uppercase letters, numbers, or special characters.',
-      );
+      setFormError({
+        message: isFr
+          ? 'Votre mot de passe est trop faible.'
+          : 'Your password is too weak.',
+        hint: isFr
+          ? 'Ajoutez des lettres majuscules, des chiffres ou des caractères spéciaux pour le renforcer.'
+          : 'Add uppercase letters, numbers, or special characters to make it stronger.',
+      });
       return;
     }
 
     try {
       await validateSignupEmail(verifiedEmail);
     } catch (err) {
-      setFormError(resolveError(err));
+      setFormError(resolveFriendly(err));
       return;
     }
 
@@ -191,25 +383,15 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
         data.password,
         data.firstName,
         data.lastName,
-        data.role,
+        data.username,
+        data.birthday,
       );
       toast.success(t('success.signUp'));
       onSuccess();
     } catch (err) {
-      setFormError(resolveError(err));
+      setFormError(resolveFriendly(err));
     }
   };
-
-  // ── Input class helper ────────────────────────────────────────────────────
-
-  const inputCls = useCallback(
-    (hasError: boolean) =>
-      `w-full py-2.5 text-sm rounded-[var(--radius-md)] border bg-white transition-all duration-150
-       placeholder:text-surface-300 text-surface-900
-       focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400
-       ${hasError ? 'border-error-400' : 'border-surface-200 hover:border-surface-300'}`,
-    [],
-  );
 
   // ── Verified email badge ──────────────────────────────────────────────────
 
@@ -219,11 +401,14 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
       <div className="flex items-center gap-2">
         <CheckCircle2 size={14} className="text-success-500" aria-hidden="true" />
         <span className="text-xs text-success-700 font-medium">{verifiedEmail}</span>
+        <span className="text-xs text-success-500">
+          {isFr ? '· vérifié' : '· verified'}
+        </span>
       </div>
       <button
         type="button"
         onClick={onBack}
-        className="text-xs text-surface-500 hover:text-surface-700 underline cursor-pointer"
+        className="text-xs text-surface-500 hover:text-surface-700 underline cursor-pointer transition-colors"
       >
         {isFr ? 'Changer' : 'Change'}
       </button>
@@ -281,34 +466,27 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
                       autoFocus
                       placeholder="you@example.com"
                       aria-invalid={!!emailErrors.email || !!gateError}
-                      aria-describedby={
-                        emailErrors.email ? 'gate-email-error'
-                        : gateError       ? 'gate-error-banner'
-                        : undefined
-                      }
                       className={`${inputCls(!!emailErrors.email || !!gateError)} pl-9 pr-3`}
                     />
                   </div>
 
-                  {emailErrors.email && (
-                    <p id="gate-email-error" role="alert" className="mt-1.5 text-xs text-error-500">
-                      {t(emailErrors.email.message ?? '')}
-                    </p>
-                  )}
+                  <AnimatePresence>
+                    {emailErrors.email && (
+                      <FieldError message={
+                        emailErrors.email.message === 'errors.emailRequired'
+                          ? (isFr ? 'L\'adresse email est requise.' : 'Email address is required.')
+                          : (isFr ? 'Cette adresse email n\'est pas valide.' : 'This email address is not valid.')
+                      } />
+                    )}
+                  </AnimatePresence>
 
-                  {gateError && (
-                    <motion.div
-                      id="gate-error-banner"
-                      role="alert"
-                      initial={{ opacity: 0, y: -4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="mt-2 flex items-start gap-2 px-3 py-2.5
-                                 rounded-[var(--radius-md)] bg-error-50 border border-error-200"
-                    >
-                      <AlertCircle size={15} className="text-error-500 shrink-0 mt-0.5" aria-hidden="true" />
-                      <p className="text-xs text-error-700 leading-relaxed">{gateError}</p>
-                    </motion.div>
-                  )}
+                  <AnimatePresence>
+                    {gateError && (
+                      <div className="mt-2">
+                        <ErrorBanner error={gateError} />
+                      </div>
+                    )}
+                  </AnimatePresence>
                 </div>
 
                 <button
@@ -348,55 +526,18 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
               <VerifiedEmailBadge
                 onBack={() => {
                   setStep('email-check');
-                  setGateError('');
-                  setFormError('');
+                  setGateError(null);
+                  setFormError(null);
                 }}
               />
 
-              {formError && (
-                <motion.div
-                  role="alert"
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex items-start gap-2.5 px-3.5 py-3 mb-4
-                             rounded-[var(--radius-md)] bg-error-50 border border-error-200"
-                >
-                  <AlertCircle size={15} className="text-error-500 shrink-0 mt-0.5" aria-hidden="true" />
-                  <p className="text-xs text-error-700 leading-relaxed">{formError}</p>
-                </motion.div>
-              )}
+              <AnimatePresence>
+                {formError && (
+                  <ErrorBanner error={formError} className="mb-4" />
+                )}
+              </AnimatePresence>
 
               <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
-
-                {/* Role selector */}
-                <div>
-                  <label className="block text-sm font-medium text-surface-700 mb-2">
-                    {isFr ? 'Je suis…' : 'I am a…'}
-                  </label>
-                  <div className="grid grid-cols-2 gap-2" role="group" aria-label={isFr ? 'Rôle' : 'Role'}>
-                    {ROLES.map(({ value, icon: Icon, label, labelFr }) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setValue('role', value)}
-                        aria-pressed={selectedRole === value}
-                        className={`flex items-center gap-2.5 px-4 py-2.5
-                                    rounded-[var(--radius-md)] border text-sm font-medium
-                                    transition-all duration-150 cursor-pointer
-                                    ${selectedRole === value
-                                      ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-sm'
-                                      : 'border-surface-200 bg-white text-surface-600 hover:border-surface-300'}`}
-                      >
-                        <Icon
-                          size={16}
-                          className={selectedRole === value ? 'text-primary-600' : 'text-surface-400'}
-                          aria-hidden="true"
-                        />
-                        {isFr ? labelFr : label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
 
                 {/* Name row */}
                 <div className="grid grid-cols-2 gap-3">
@@ -419,11 +560,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
                         className={`${inputCls(!!errors.firstName)} pl-9 pr-3`}
                       />
                     </div>
-                    {errors.firstName && (
-                      <p role="alert" className="mt-1 text-xs text-error-500">
-                        {errors.firstName.message}
-                      </p>
-                    )}
+                    <FieldError message={errors.firstName?.message} />
                   </div>
 
                   <div>
@@ -438,12 +575,69 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
                       aria-invalid={!!errors.lastName}
                       className={`${inputCls(!!errors.lastName)} px-3`}
                     />
-                    {errors.lastName && (
-                      <p role="alert" className="mt-1 text-xs text-error-500">
-                        {errors.lastName.message}
-                      </p>
-                    )}
+                    <FieldError message={errors.lastName?.message} />
                   </div>
+                </div>
+
+                {/* Username */}
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-1.5">
+                    {isFr ? 'Nom d\'utilisateur' : 'Username'}
+                  </label>
+                  <div className="relative">
+                    <AtSign
+                      size={15}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none"
+                      aria-hidden="true"
+                    />
+                    <input
+                      {...register('username')}
+                      type="text"
+                      autoComplete="username"
+                      placeholder="john_doe"
+                      aria-invalid={!!errors.username}
+                      className={`${inputCls(!!errors.username)} pl-9 pr-3`}
+                    />
+                  </div>
+                  {errors.username
+                    ? <FieldError message={errors.username.message} />
+                    : <FieldHint message={
+                        isFr
+                          ? 'Lettres minuscules, chiffres, tirets et underscores uniquement.'
+                          : 'Lowercase letters, numbers, hyphens, and underscores only.'
+                      } />
+                  }
+                </div>
+
+                {/* Birthday */}
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-1.5">
+                    {isFr ? 'Date de naissance' : 'Date of birth'}
+                  </label>
+                  <div className="relative">
+                    <Calendar
+                      size={15}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400 pointer-events-none"
+                      aria-hidden="true"
+                    />
+                    <input
+                      {...register('birthday')}
+                      type="date"
+                      autoComplete="bday"
+                      max={minAge.toISOString().split('T')[0]}
+                      min={maxAge.toISOString().split('T')[0]}
+                      aria-invalid={!!errors.birthday}
+                      className={`${inputCls(!!errors.birthday)} pl-9 pr-3`}
+                    />
+                  </div>
+                  {errors.birthday
+                    ? <FieldError message={errors.birthday.message} />
+                    : <FieldHint message={
+                        isFr
+                          ? 'Votre date de naissance ne sera pas partagée publiquement.'
+                          : 'Your date of birth won\'t be shared publicly.'
+                      } />
+                  }
                 </div>
 
                 {/* Password */}
@@ -483,11 +677,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
                         : <Eye size={15} aria-hidden="true" />}
                     </button>
                   </div>
-                  {errors.password && (
-                    <p role="alert" className="mt-1 text-xs text-error-500">
-                      {errors.password.message}
-                    </p>
-                  )}
+                  <FieldError message={errors.password?.message} />
 
                   <AnimatePresence>
                     {showChecks && passwordValue.length > 0 && (
@@ -568,11 +758,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
                         : <Eye size={15} aria-hidden="true" />}
                     </button>
                   </div>
-                  {errors.confirmPassword && (
-                    <p role="alert" className="mt-1 text-xs text-error-500">
-                      {errors.confirmPassword.message}
-                    </p>
-                  )}
+                  <FieldError message={errors.confirmPassword?.message} />
                 </div>
 
                 {/* Submit */}
@@ -580,13 +766,16 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
                   type="submit"
                   disabled={isSubmitting}
                   aria-busy={isSubmitting}
-                  className="w-full py-2.5 px-4 rounded-[var(--radius-md)]
-                             bg-primary-600 hover:bg-primary-700 text-white
-                             text-sm font-medium transition-all duration-150
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4
+                             rounded-[var(--radius-md)] bg-primary-600 hover:bg-primary-700
+                             text-white text-sm font-medium transition-all duration-150
                              disabled:opacity-60 disabled:cursor-not-allowed
                              cursor-pointer shadow-sm hover:shadow-md"
                 >
-                  {isSubmitting ? t('auth.signingUp') : t('auth.signUp')}
+                  {isSubmitting && <Loader2 size={15} className="animate-spin" aria-hidden="true" />}
+                  {isSubmitting
+                    ? t('auth.signingUp')
+                    : (isFr ? 'Créer mon compte' : 'Create account')}
                 </button>
               </form>
 
@@ -612,7 +801,6 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
         </p>
       </motion.div>
 
-      {/* Email Verification Modal — rendered outside the form flow */}
       <EmailVerificationModal
         isOpen={showVerifyModal}
         email={verifiedEmail}

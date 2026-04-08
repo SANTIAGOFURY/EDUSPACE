@@ -17,7 +17,7 @@ const MAX_ATTEMPTS      = 5;
 const TOTAL_SECS        = 600;
 
 export function EmailVerificationModal({
-  isOpen, email, onVerified, onBack, codeSentAt, expiresInMinutes = 10,
+  isOpen, email, onVerified, onBack, codeSentAt,
 }: EmailVerificationModalProps) {
   const [digits,      setDigits]      = useState<string[]>(Array(CODE_LENGTH).fill(''));
   const [error,       setError]       = useState('');

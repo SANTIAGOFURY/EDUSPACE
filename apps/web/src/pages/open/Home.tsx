@@ -1,14 +1,18 @@
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion ,type Variants } from 'framer-motion';
 import { ArrowRight, BookOpen, Users, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 20 },
-  show: (i: number) => ({
+const fadeUp: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  show: (i: number = 0) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.1, duration: 0.5, ease: [0.4, 0, 0.2, 1] },
+    transition: {
+      delay: i * 0.08,
+      duration: 0.5,
+      ease: "easeOut",
+    },
   }),
 };
 
