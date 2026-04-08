@@ -17,7 +17,6 @@ import {
 import { db } from '../../../services/firebase';
 import { useAuth } from '../../../context/AuthContext';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface AuthorizedStudent {
   email:        string;
