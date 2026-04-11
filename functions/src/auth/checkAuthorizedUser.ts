@@ -1,6 +1,31 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // checkAuthorizedUser.ts
 // ─────────────────────────────────────────────────────────────────────────────
+//
+// Called by the frontend in two situations:
+//
+//   1. Email/password signup — after the user types their email, before they
+//      are allowed to proceed through the signup flow.
+//
+//   2. Google sign-in — ONLY for brand-new users (no Firestore profile found
+//      via resolveCustomId). Returning Google users bypass this function
+//      entirely on the frontend.
+//
+// This function intentionally does NOT check whether a Firebase Auth account
+// already exists for the email because:
+//
+//   • Google sign-in always creates a Firebase Auth account before this
+//     function is called, so such a check would always throw 'already-exists'
+//     for new Google users, incorrectly blocking them.
+//
+//   • Returning users are short-circuited on the frontend (resolveCustomId
+//     finds their profile and never reaches this function).
+//
+//   • Duplicate email/password registrations are already prevented by
+//     Firebase Auth itself (auth/email-already-in-use).
+//
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import { isValidEmail, checkRateLimit, logAuditEvent } from '../helpers';
@@ -45,27 +70,11 @@ export const checkAuthorizedUser = onCall(async (request) => {
     });
     throw new HttpsError(
       'permission-denied',
-      'This email address is not authorised to sign up. Please contact your administrator.',
+      'This email is not authorised to access this app. Contact your administrator.',
     );
   }
 
   // ── Authorized ────────────────────────────────────────────────────────────
-  // NOTE: We intentionally do NOT check whether a Firebase Auth account
-  // already exists for this email. That check was removed because:
-  //
-  //   1. Google sign-in always creates a Firebase Auth account before this
-  //      function is called, so the check would always throw 'already-exists'
-  //      for new Google users, incorrectly blocking them.
-  //
-  //   2. The frontend now handles the "already registered" case by checking
-  //      Firestore first (resolveCustomId) before calling this function.
-  //      If a Firestore profile exists the frontend short-circuits and never
-  //      reaches this function. If no Firestore profile exists the user is
-  //      genuinely new, regardless of whether a Firebase Auth record exists.
-  //
-  //   3. Duplicate registration for email/password users is already prevented
-  //      by Firebase Auth itself (auth/email-already-in-use).
-
   return {
     authorized: true,
     remaining:  rateLimit.remaining,

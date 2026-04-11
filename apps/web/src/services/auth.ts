@@ -254,76 +254,75 @@ export async function handleGoogleRedirectResult(): Promise<{
   }
 }
 
-/**
- * Called after every successful Google OAuth sign-in (popup or redirect).
- *
- * Decision tree:
- *
- *  A) Returning user (userLookup doc already exists + profileComplete=true)
- *     → Skip the authorization gate. Just sign them in.
- *
- *  B) Returning user mid-onboarding (userLookup exists but profileComplete=false)
- *     → Skip the authorization gate. Let them finish their profile.
- *
- *  C) Brand-new user (no userLookup doc)
- *     → Run checkAuthorizedUser first.
- *       • Not authorized  → sign out immediately, throw signupBlocked error.
- *       • Authorized      → create profile stub, return needsProfile: true.
- *
- * Why this order matters:
- *   checkAuthorizedUser also throws 'already-exists' when a Firebase Auth
- *   account already exists for the email. For Google sign-ins the account
- *   always exists (Google just authenticated them), so calling
- *   checkAuthorizedUser on a returning user would always throw. We must
- *   check for an existing profile FIRST and short-circuit before hitting
- *   the authorization function.
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// finaliseGoogleSignIn
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Decision tree:
+//
+//  Step 1 — Returning user (Firestore profile found via resolveCustomId)
+//            → Skip the authorization gate entirely. They already passed it
+//              once. Return needsProfile based on profileComplete flag.
+//
+//  Step 2 — Brand-new user (no Firestore profile found)
+//            → MUST be in the authorizedUsers collection.
+//              • Not authorized → sign out immediately, throw signupBlocked.
+//              • Authorized     → fall through to Step 3.
+//
+//  Step 3 — Authorized new user
+//            → Create profile stub, return needsProfile: true so the UI
+//              redirects to profile completion.
+//
+// Why the profile check comes before the authorization check:
+//   checkAuthorizedUser used to also throw 'already-exists' when a Firebase
+//   Auth account existed for the email. Google sign-in always creates one,
+//   so calling it on a returning user would always throw. We short-circuit
+//   at Step 1 to avoid that. The backend no longer performs that check, but
+//   the ordering remains correct by design.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function finaliseGoogleSignIn(user: User): Promise<{
   user:         User;
   needsProfile: boolean;
 }> {
   const email = user.email ?? '';
 
-  // ── Case A & B: check for an existing Firestore profile ──────────────────
+  // ── Step 1: Check for an existing Firestore profile ───────────────────────
+  // Both fully-onboarded and mid-onboarding returning users bypass the
+  // authorization gate — they already cleared it on their first sign-in.
   try {
     const customId = await resolveCustomId(user.uid);
 
     if (customId) {
       const profileSnap     = await getUserProfileByCustomId(customId);
-      const data            = profileSnap.data();
-      const profileComplete = data?.profileComplete ?? false;
+      const profileComplete = profileSnap.data()?.profileComplete ?? false;
 
-      // Case A — fully onboarded returning user
-      if (profileComplete) return { user, needsProfile: false };
+      // Refresh token so any custom claims are up to date.
+      try { await user.getIdToken(true); } catch {
+        console.warn('finaliseGoogleSignIn: token refresh failed (non-fatal)');
+      }
 
-      // Case B — started onboarding but never finished
-      return { user, needsProfile: true };
+      return { user, needsProfile: !profileComplete };
     }
   } catch {
-    // resolveCustomId throws when the lookup doc doesn't exist yet.
-    // This means it's a brand-new user → fall through to Case C.
+    // resolveCustomId throws when no lookup doc exists → brand-new user.
+    // Fall through to Step 2.
   }
 
-  // ── Case C: brand-new user — enforce the authorization allowlist ──────────
-  //
-  // checkAuthorizedUser will:
-  //   • throw 'permission-denied'  → email not in authorizedUsers
-  //   • throw 'already-exists'     → Firebase Auth account exists (won't happen
-  //                                   here because we only reach this branch when
-  //                                   resolveCustomId found no Firestore doc, but
-  //                                   guard it anyway)
-  //   • return normally            → authorized and ready to create a profile
+  // ── Step 2: Brand-new user — enforce the authorization allowlist ──────────
+  // If the email is not in authorizedUsers, sign out immediately so the user
+  // doesn't sit in a half-authenticated state, then surface the error.
   try {
     await checkAuthorizedUser(email);
   } catch (err) {
-    // Unauthorized or any unexpected error:
-    // sign the user out immediately so they don't sit in a half-authenticated
-    // state, then surface the error to the UI.
     try { await signOut(auth); } catch { /* ignore */ }
-    throw err; // already an AppError from callFn
+    // Re-throw as-is — callFn already wrapped it in an AppError with the
+    // correct i18nKey (errors.signupBlocked for permission-denied).
+    throw err;
   }
 
-  // ── Authorized — create the stub profile ─────────────────────────────────
+  // ── Step 3: Authorized — create the profile stub ─────────────────────────
   try {
     await createUserProfileFn({
       email,
@@ -333,17 +332,21 @@ async function finaliseGoogleSignIn(user: User): Promise<{
     });
   } catch (err) {
     const code = extractCode(err);
-    // 'already-exists' is a harmless race condition: two tabs finishing at the
-    // same time. Safe to continue.
-    if (code !== 'already-exists') {
-      try { await signOut(auth); } catch { /* ignore */ }
-      throw new AppError(getFirebaseErrorKey(code), undefined, code);
+
+    // Race condition: two tabs completed sign-in simultaneously and the stub
+    // was already created by the other tab. Safe to continue.
+    if (code === 'already-exists') {
+      try { await user.getIdToken(true); } catch {
+        console.warn('finaliseGoogleSignIn: token refresh failed (non-fatal)');
+      }
+      return { user, needsProfile: true };
     }
+
+    try { await signOut(auth); } catch { /* ignore */ }
+    throw new AppError(getFirebaseErrorKey(code), undefined, code);
   }
 
-  try {
-    await user.getIdToken(true);
-  } catch {
+  try { await user.getIdToken(true); } catch {
     console.warn('finaliseGoogleSignIn: token refresh failed (non-fatal)');
   }
 
